@@ -51,6 +51,7 @@ class ThreadPool {
      */
     bool take_next( unsigned index ) {
         bool should_wait = false;
+        std::unique_lock<std::mutex> job_lock( job_available_mutex, std::defer_lock );
 
         // Quick exit
         if( bailout )
@@ -67,22 +68,26 @@ class ThreadPool {
             ++threads_waiting;
             wait_var.notify_all();
 
-            std::unique_lock<std::mutex> lk( job_available_mutex );
-            job_available_var.wait( lk, [this]{ return JobsRemaining() || bailout; } );
-            lk.unlock();
+            job_lock.lock();
+            job_available_var.wait( job_lock, [this]{ return JobsRemaining() || bailout; } );
 
             --threads_waiting;
 
-            if( bailout )
+            if( bailout ) {
+                job_lock.unlock();
                 return false;
-
+            }
             queue_mutex.lock();
         }
-        
+        else
+            job_lock.lock();
+
         threads[ index ].second = queue.front();
         queue.pop_front();
 
         queue_mutex.unlock();
+        job_lock.unlock();
+        
         return true;
     }
 
