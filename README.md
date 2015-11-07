@@ -27,7 +27,10 @@ public:
 
 ## Example
 ```c++
-#include <ThreadPool.h>
+#include "ThreadPool.h"
+
+#include <iostream>
+#include <chrono>
 
 int main() {
     using nbsdx::concurrent::ThreadPool;
