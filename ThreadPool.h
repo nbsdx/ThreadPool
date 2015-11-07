@@ -27,6 +27,7 @@ class ThreadPool {
 
     std::list<std::function<void(void)>> queue;
 
+    std::atomic_int         threads_waiting;
     std::atomic_bool        bailout;
     std::atomic_bool        finished;
     std::condition_variable job_available_var;
@@ -63,9 +64,14 @@ class ThreadPool {
         if( queue.empty() ) {
             queue_mutex.unlock();
 
+            ++threads_waiting;
+            wait_var.notify_all();
+
             std::unique_lock<std::mutex> lk( job_available_mutex );
-            job_available_var.wait( lk );
+            job_available_var.wait( lk, [this]{ return JobsRemaining() || bailout; } );
             lk.unlock();
+
+            --threads_waiting;
 
             if( bailout )
                 return false;
@@ -76,19 +82,20 @@ class ThreadPool {
         threads[ index ].second = queue.front();
         queue.pop_front();
 
-        // If we're waiting for the queue to be empty,
-        // stop waiting.
-        if( queue.empty() )
-            wait_var.notify_one();
-
         queue_mutex.unlock();
         return true;
     }
 
 public:
-    ThreadPool() : bailout( false ), finished( false ) {
-        for( unsigned i = 0; i < ThreadCount; ++i )
+    ThreadPool()
+        : threads_waiting( 0 )
+        , bailout( false )
+        , finished( false ) 
+    {
+        for( unsigned i = 0; i < ThreadCount; ++i ) {
             threads[ i ].first = std::move( std::thread( Task, this, i ) );
+            threads[ i ].second = []{};
+        }
     }
 
     /**
@@ -103,6 +110,17 @@ public:
      */
     inline unsigned Size() const {
         return ThreadCount;
+    }
+
+    /**
+     *  Get the number of jobs left in the queue.
+     */
+    inline unsigned JobsRemaining() {
+        unsigned res = 0;
+        queue_mutex.lock();
+        res = queue.size();
+        queue_mutex.unlock();
+        return res;
     }
 
     /**
@@ -127,15 +145,8 @@ public:
      */
     void JoinAll( bool WaitForAll = true ) {
         if( !finished ) {
-            if( WaitForAll ) {
-                queue_mutex.lock();
-                if( !queue.empty() ) {
-                    queue_mutex.unlock();
-                    WaitAll();
-                }
-                else
-                    queue_mutex.unlock();
-            }
+            if( WaitForAll )
+                WaitAll();
 
             // note that we're done, and wake up any thread that's
             // waiting for a new job
@@ -152,13 +163,14 @@ public:
     /**
      *  Wait for the pool to empty before continuing. 
      *  This does not call `std::thread::join`, it only waits until
-     *  all jobs have been removed from the queue. As such, jobs
-     *  may still be active when WaitAll returns. 
+     *  all jobs have finshed executing.
      */
     void WaitAll() {
-        std::unique_lock<std::mutex> lk( wait_mutex );
-        wait_var.wait( lk );
-        lk.unlock();
+        if( this->threads_waiting != ThreadCount ) {
+            std::unique_lock<std::mutex> lk( wait_mutex );
+            wait_var.wait( lk, [this]{ return this->threads_waiting == ThreadCount; } );
+            lk.unlock();
+        }
     }
 };
 
