@@ -129,6 +129,7 @@ public:
      *  the job is added to the end of the queue.
      */
     void AddJob( std::function<void(void)> job ) {
+        std::lock_guard<std::mutex> guard( queue_mutex );
         queue.emplace_back( job );
         job_available_var.notify_one();
     }
