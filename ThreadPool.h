@@ -8,8 +8,6 @@
 #include <functional>
 #include <condition_variable>
 
-#include <iostream>
-
 namespace nbsdx {
 namespace concurrent {
 
