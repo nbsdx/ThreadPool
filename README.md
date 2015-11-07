@@ -2,7 +2,7 @@
 Lightweight, Generic, Pure C++11 ThreadPool
 
 ## Rational
-I needed a Thread Pool for something I was writing, and I didn't see any that I liked. This is still somewhat a work in progress; it's stable, but there are definitely places where some of the locking logic could be better.
+I needed a Thread Pool for something I was writing, and I didn't see any that I liked. This is still somewhat a work in progress; it's stable, but there are probably places where some of the locking logic could be better. `ThreadPool::JoinAll` is a little sloppy, but it works. 
 
 ## Licensing 
 Unlicensed, I don't want recognition. Use at your own risk for whatever you want. Feel free to change the namespaces as well.
