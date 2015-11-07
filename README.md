@@ -8,7 +8,7 @@ I needed a Thread Pool for something I was writing, and I didn't see any that I 
 Unlicensed, I don't want recognition. Use at your own risk for whatever you want. Feel free to change the namespaces as well.
 
 ## Overview
-ThreadPool is a super simple class that manages threads and jobs. Jobs are functions with no parameters or return values. This decision was to make it as generic as possible so it could be integrated into a variety of projects.
+`ThreadPool` is a super simple class that manages threads and jobs. `ThreadCount` threads are created at object instantiation time, and persist until the `ThreadPool` object is destroyed. You cannot change the thread count. A later version may allow you to set the thread count through the constructor rather than as a template parameter, but it's not something I care to do at the moment. Jobs are functions with no parameters or return values. This decision was to make it as generic as possible so it could be integrated into a variety of projects.
 
 Below is a quick overview, but ThreadPool.h is documented, so just read that. It's less than 200 lines with comments.
 
@@ -32,7 +32,7 @@ public:
 int main() {
     using nbsdx::concurrent::ThreadPool;
     
-    ThreadPool pool;
+    ThreadPool pool; // Defaults to 10 threads.
     int JOB_COUNT = 100;
     
     for( int i = 0; i < JOB_COUNT; ++i )
@@ -41,7 +41,6 @@ int main() {
         } );
     
     pool.JoinAll();
-    std::cout << "Expected runtime: " << (JOB_COUNT / pool.Size()) 
-              << " seconds." << std::endl;
+    std::cout << "Expected runtime: 10 seconds." << std::endl;
 }
 ```
