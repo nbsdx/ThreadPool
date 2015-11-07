@@ -5,10 +5,12 @@ Lightweight, Generic, Pure C++11 ThreadPool
 I needed a Thread Pool for something I was writing, and I didn't see any that I liked. This is still somewhat a work in progress; it's stable, but there are definitely places where some of the locking logic could be better.
 
 ## Licensing 
-Unlicensed, I don't want recognition. Use at your own risk for whatever you want. 
+Unlicensed, I don't want recognition. Use at your own risk for whatever you want. Feel free to change the namespaces as well.
 
 ## Overview
 ThreadPool is a super simple class that manages threads and jobs. Jobs are functions with no parameters or return values. This decision was to make it as generic as possible so it could be integrated into a variety of projects.
+
+Below is a quick overview, but ThreadPool.h is documented, so just read that. It's less than 200 lines with comments.
 
 ```c++
 template <unsigned ThreadCount = 10>
