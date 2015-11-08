@@ -41,7 +41,7 @@ int main() {
     
     for( int i = 0; i < JOB_COUNT; ++i )
         pool.AddJob( []() { 
-            std::this_thread::sleep_for( std::chrono_seconds( 1 ) );
+            std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
         } );
     
     pool.JoinAll();
@@ -59,3 +59,4 @@ void RunInPool( Iter begin, Iter end ) {
     pool.JoinAll();
 }
 ```
+It's worth nothing that the `pool.JoinAll();` is optional in this example, since `JoinAll` is invoked upon object deconstruction. 
