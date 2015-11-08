@@ -26,7 +26,7 @@ public:
 };
 ```
 
-## Example
+## Examples
 ```c++
 #include "ThreadPool.h"
 
@@ -46,5 +46,16 @@ int main() {
     
     pool.JoinAll();
     std::cout << "Expected runtime: 10 seconds." << std::endl;
+}
+```
+
+Convience Function for running a list of jobs in a pool, assuming the type being iterated is of `std::function<void(void)>`:
+```c++
+template <typename Iter, unsigned Count = 10>
+void RunInPool( Iter begin, Iter end ) {
+    ThreadPool<Count> pool;
+    for( ; begin != end; begin = std::next( begin ) )
+        pool.AddJob( *begin );
+    pool.JoinAll();
 }
 ```
