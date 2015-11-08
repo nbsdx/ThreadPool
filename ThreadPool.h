@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CONCURRENT_THREADPOOL_H
+#define CONCURRENT_THREADPOOL_H
 
 #include <atomic>
 #include <thread>
@@ -182,3 +183,5 @@ public:
 
 } // namespace concurrent
 } // namespace nbsdx
+
+#endif //CONCURRENT_THREADPOOL_H
