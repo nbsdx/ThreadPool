@@ -29,7 +29,6 @@ class ThreadPool {
     std::atomic_bool        finished;
     std::condition_variable job_available_var;
     std::condition_variable wait_var;
-    std::mutex              job_available_mutex;
     std::mutex              wait_mutex;
     std::mutex              queue_mutex;
 
@@ -51,8 +50,7 @@ class ThreadPool {
      */
     std::function<void(void)> next_job() {
         std::function<void(void)> res;
-        std::unique_lock<std::mutex> job_lock( job_available_mutex );
-        queue_mutex.lock();
+        std::unique_lock<std::mutex> job_lock( queue_mutex );
 
         // Get job from the queue
         if( !queue.empty() ) {
@@ -60,10 +58,8 @@ class ThreadPool {
             queue.pop_front();
         }
         else { // Wait for a notification from the main thread.
-            queue_mutex.unlock();
             job_available_var.wait( job_lock, [this]{ return (JobsRemaining()) || bailout; } );
             
-            queue_mutex.lock();
             if( !bailout ) {
                 res = queue.front();
                 queue.pop_front();
@@ -73,7 +69,6 @@ class ThreadPool {
                 ++jobs_left;
             }
         }
-        queue_mutex.unlock();
         job_lock.unlock();
 
         return res;
