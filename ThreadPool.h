@@ -52,25 +52,18 @@ class ThreadPool {
         std::function<void(void)> res;
         std::unique_lock<std::mutex> job_lock( queue_mutex );
 
+        if( queue.empty() ) { // Wait for a notification from the main thread and avoid spurious wake-up.
+            job_available_var.wait( job_lock, [this]{ queue.size() || bailout; } );
+        }
         // Get job from the queue
-        if( !queue.empty() ) {
+        if( !bailout ) {
             res = queue.front();
             queue.pop_front();
         }
-        else { // Wait for a notification from the main thread.
-            job_available_var.wait( job_lock, [this]{ return (JobsRemaining()) || bailout; } );
-            
-            if( !bailout ) {
-                res = queue.front();
-                queue.pop_front();
-            }
-            else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
-                res = []{};
-                ++jobs_left;
-            }
+        else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
+            res = []{};
+            ++jobs_left;
         }
-        job_lock.unlock();
-
         return res;
     }
 
