@@ -29,7 +29,6 @@ class ThreadPool {
     std::atomic_bool        finished;
     std::condition_variable job_available_var;
     std::condition_variable wait_var;
-    std::mutex              job_available_mutex;
     std::mutex              wait_mutex;
     std::mutex              queue_mutex;
 
@@ -51,31 +50,20 @@ class ThreadPool {
      */
     std::function<void(void)> next_job() {
         std::function<void(void)> res;
-        std::unique_lock<std::mutex> job_lock( job_available_mutex );
-        queue_mutex.lock();
+        std::unique_lock<std::mutex> job_lock( queue_mutex );
 
+        if( queue.empty() ) { // Wait for a notification from the main thread and avoid spurious wake-up.
+            job_available_var.wait( job_lock, [this]{ queue.size() || bailout; } );
+        }
         // Get job from the queue
-        if( !queue.empty() ) {
+        if( !bailout ) {
             res = queue.front();
             queue.pop_front();
         }
-        else { // Wait for a notification from the main thread.
-            queue_mutex.unlock();
-            job_available_var.wait( job_lock, [this]{ return (JobsRemaining()) || bailout; } );
-            
-            queue_mutex.lock();
-            if( !bailout ) {
-                res = queue.front();
-                queue.pop_front();
-            }
-            else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
-                res = []{};
-                ++jobs_left;
-            }
+        else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
+            res = []{};
+            ++jobs_left;
         }
-        queue_mutex.unlock();
-        job_lock.unlock();
-
         return res;
     }
 
