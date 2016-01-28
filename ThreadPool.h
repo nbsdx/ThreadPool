@@ -53,7 +53,7 @@ class ThreadPool {
         std::unique_lock<std::mutex> job_lock( queue_mutex );
 
         // Wait for a job if we don't have any.
-        job_available_var.wait( job_lock, [this]{ queue.size() || bailout; } );
+        job_available_var.wait( job_lock, [this]() ->bool { return queue.size() || bailout; } );
         
         // Get job from the queue
         if( !bailout ) {
