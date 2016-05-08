@@ -74,7 +74,7 @@ public:
         , finished( false ) 
     {
         for( unsigned i = 0; i < ThreadCount; ++i )
-            threads[ i ] = std::move( std::thread( [this,i]{ this->Task(); } ) );
+            threads[ i ] = std::move( std::thread( [this]{ this->Task(); } ) );
     }
 
     /**
