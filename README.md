@@ -13,12 +13,22 @@ Public Domain. If my licensing is wrong, please let me know. Use at your own ris
 Below is a quick overview, but ThreadPool.h is documented, so just read that. It's less than 200 lines with comments.
 
 ```c++
-template <unsigned ThreadCount = 10>
+class CallObject{
+public:
+	CallObject(){func = [](DataType){};};
+	CallObject(std::function<void(DataType)> in1, DataType in2):
+		func(in1),data(in2){};
+	std::function<void(DataType)> func;
+	DataType data;
+};
+
+template <typename DataType, unsigned ThreadCount = 20, unsigned Max = 10000>
 class ThreadPool {
 public:
     ThreadPool();
     ~ThreadPool();
-    void AddJob( std::function<void(void)> );
+    void AddJob( CallObject<DataType> job );
+	int AddJobNoMoreThanMax( CallObject<DataType> job );
     unsigned Size() const;
     unsigned JobsRemaining();
     void JoinAll( bool WaitForAll = true );
@@ -36,16 +46,17 @@ public:
 int main() {
     using nbsdx::concurrent::ThreadPool;
     
-    ThreadPool pool; // Defaults to 10 threads.
-    int JOB_COUNT = 100;
+    ThreadPool<int> pool; // Defaults to 20 threads,10000 queue size.
+    int JOB_COUNT = 20000;
     
     for( int i = 0; i < JOB_COUNT; ++i )
-        pool.AddJob( []() { 
-            std::this_thread::sleep_for( std::chrono::seconds( 1 ) );
-        } );
+	{
+        if(pool.AddJobNoMoreThanMax(CallObject<int> job) < 0 )
+			break;
+	}
     
     pool.JoinAll();
-    std::cout << "Expected runtime: 10 seconds." << std::endl;
+    std::cout << "Expected runtime: x seconds." << std::endl;
 }
 ```
 
@@ -53,7 +64,7 @@ Convience Function for running a list of jobs in a pool, assuming the type being
 ```c++
 template <typename Iter, unsigned Count = 10>
 void RunInPool( Iter begin, Iter end ) {
-    ThreadPool<Count> pool;
+    ThreadPool<CallObject<your_type_name>> pool;
     for( ; begin != end; begin = std::next( begin ) )
         pool.AddJob( *begin );
     pool.JoinAll();
