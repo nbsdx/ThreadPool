@@ -11,6 +11,15 @@
 
 namespace nbsdx {
 namespace concurrent {
+template<typename DataType>
+class CallObject{
+public:
+	CallObject(){func = [](DataType){};};
+	CallObject(std::function<void(DataType)> in1, DataType in2):
+		func(in1),data(in2){};
+	std::function<void(DataType)> func;
+	DataType data;
+};
 
 /**
  *  Simple ThreadPool that creates `ThreadCount` threads upon its creation,
@@ -18,11 +27,11 @@ namespace concurrent {
  *
  *  This class requires a number of c++11 features be present in your compiler.
  */
-template <unsigned ThreadCount = 10>
+template <typename DataType, unsigned ThreadCount = 20, unsigned Max = 10000>
 class ThreadPool {
-    
+protected:
     std::array<std::thread, ThreadCount> threads;
-    std::list<std::function<void(void)>> queue;
+    std::list<CallObject<DataType>> queue;
 
     std::atomic_int         jobs_left;
     std::atomic_bool        bailout;
@@ -38,7 +47,8 @@ class ThreadPool {
      */
     void Task() {
         while( !bailout ) {
-            next_job()();
+            CallObject<DataType> next = next_job();
+			next.func(next.data);
             --jobs_left;
             wait_var.notify_one();
         }
@@ -48,8 +58,8 @@ class ThreadPool {
      *  Get the next job; pop the first item in the queue, 
      *  otherwise wait for a signal from the main thread.
      */
-    std::function<void(void)> next_job() {
-        std::function<void(void)> res;
+    CallObject<DataType> next_job() {
+        CallObject<DataType> res;
         std::unique_lock<std::mutex> job_lock( queue_mutex );
 
         // Wait for a job if we don't have any.
@@ -61,7 +71,7 @@ class ThreadPool {
             queue.pop_front();
         }
         else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
-            res = []{};
+            res = CallObject<DataType>();
             ++jobs_left;
         }
         return res;
@@ -104,11 +114,31 @@ public:
      *  a thread is woken up to take the job. If all threads are busy,
      *  the job is added to the end of the queue.
      */
-    void AddJob( std::function<void(void)> job ) {
+    void AddJob( CallObject<DataType> job ) {
         std::lock_guard<std::mutex> guard( queue_mutex );
         queue.emplace_back( job );
         ++jobs_left;
         job_available_var.notify_one();
+    }
+
+
+	/**
+     *  Add a new job to the pool. If there are no jobs in the queue,
+     *  a thread is woken up to take the job. If all threads are busy,
+     *  the job is added to the end of the queue.
+     *  Return: -1 if queue is full, 0 if ok
+     */
+	int AddJobNoMoreThanMax( CallObject<DataType> job )
+	{
+        std::lock_guard<std::mutex> guard( queue_mutex );
+		if(jobs_left <= Max)
+		{
+	        queue.emplace_back( job );
+	        ++jobs_left;
+	        job_available_var.notify_one();
+			return 0;
+		}
+		else return -1;
     }
 
     /**
