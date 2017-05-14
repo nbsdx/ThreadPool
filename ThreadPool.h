@@ -24,12 +24,10 @@ class ThreadPool {
     std::array<std::thread, ThreadCount> threads;
     std::list<std::function<void(void)>> queue;
 
-    std::atomic_int         jobs_left;
     std::atomic_bool        bailout;
     std::atomic_bool        finished;
-    std::condition_variable job_available_var;
-    std::condition_variable wait_var;
-    std::mutex              wait_mutex;
+    std::condition_variable con_with_jobs;
+    std::condition_variable con_without_jobs;
     std::mutex              queue_mutex;
 
     /**
@@ -39,8 +37,6 @@ class ThreadPool {
     void Task() {
         while( !bailout ) {
             next_job()();
-            --jobs_left;
-            wait_var.notify_one();
         }
     }
 
@@ -53,25 +49,24 @@ class ThreadPool {
         std::unique_lock<std::mutex> job_lock( queue_mutex );
 
         // Wait for a job if we don't have any.
-        job_available_var.wait( job_lock, [this]() ->bool { return queue.size() || bailout; } );
-        
+        con_with_jobs.wait( job_lock, [this]() ->bool { return queue.size() || bailout; } );
+
         // Get job from the queue
-        if( !bailout ) {
+        if( queue.size() ) {
             res = queue.front();
             queue.pop_front();
+            con_without_jobs.notify_one();
         }
-        else { // If we're bailing out, 'inject' a job into the queue to keep jobs_left accurate.
+        else if ( bailout ){ // If we're bailing out, 'inject' a job
             res = []{};
-            ++jobs_left;
         }
         return res;
     }
 
 public:
-    ThreadPool()
-        : jobs_left( 0 )
-        , bailout( false )
-        , finished( false ) 
+    ThreadPool() :
+        bailout( false ),
+        finished( false )
     {
         for( unsigned i = 0; i < ThreadCount; ++i )
             threads[ i ] = std::thread( [this]{ this->Task(); } );
@@ -107,8 +102,7 @@ public:
     void AddJob( std::function<void(void)> job ) {
         std::lock_guard<std::mutex> guard( queue_mutex );
         queue.emplace_back( job );
-        ++jobs_left;
-        job_available_var.notify_one();
+        con_with_jobs.notify_one();
     }
 
     /**
@@ -130,7 +124,7 @@ public:
             // note that we're done, and wake up any thread that's
             // waiting for a new job
             bailout = true;
-            job_available_var.notify_all();
+            con_with_jobs.notify_all();
 
             for( auto &x : threads )
                 if( x.joinable() )
@@ -145,11 +139,8 @@ public:
      *  all jobs have finshed executing.
      */
     void WaitAll() {
-        if( jobs_left > 0 ) {
-            std::unique_lock<std::mutex> lk( wait_mutex );
-            wait_var.wait( lk, [this]{ return this->jobs_left == 0; } );
-            lk.unlock();
-        }
+        std::unique_lock<std::mutex> lk( queue_mutex );
+        con_without_jobs.wait( lk, [this]{ return queue.empty(); } );
     }
 };
 
