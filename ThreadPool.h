@@ -75,7 +75,7 @@ public:
         , finished( false ) 
     {
         for( unsigned i = 0; i < threadCount; ++i )
-            threads.push_back( std::thread( [this,i]{ this->Task(); } ) );
+            threads.emplace_back( [this,i]{ this->Task(); } );
     }
 
     /**
