@@ -4,7 +4,7 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
-#include <array>
+#include <vector>
 #include <list>
 #include <functional>
 #include <condition_variable>
@@ -13,15 +13,15 @@ namespace nbsdx {
 namespace concurrent {
 
 /**
- *  Simple ThreadPool that creates `ThreadCount` threads upon its creation,
- *  and pulls from a queue to get new jobs. The default is 10 threads.
+ *  Simple ThreadPool that creates `threadCount` threads upon its creation,
+ *  and pulls from a queue to get new jobs. The default is CPU thread count.
  *
  *  This class requires a number of c++11 features be present in your compiler.
  */
-template <unsigned ThreadCount = 10>
 class ThreadPool {
-    
-    std::array<std::thread, ThreadCount> threads;
+
+    unsigned threadCount;
+    std::vector<std::thread> threads;
     std::list<std::function<void(void)>> queue;
 
     std::atomic_int         jobs_left;
@@ -68,13 +68,14 @@ class ThreadPool {
     }
 
 public:
-    ThreadPool()
-        : jobs_left( 0 )
+    ThreadPool(unsigned threadCount = std::thread::hardware_concurrency())
+        : threadCount( threadCount )
+        , jobs_left( 0 )
         , bailout( false )
         , finished( false ) 
     {
-        for( unsigned i = 0; i < ThreadCount; ++i )
-            threads[ i ] = std::thread( [this]{ this->Task(); } );
+        for( unsigned i = 0; i < threadCount; ++i )
+            threads.emplace_back( [this,i]{ this->Task(); } );
     }
 
     /**
@@ -88,7 +89,7 @@ public:
      *  Get the number of threads in this pool
      */
     inline unsigned Size() const {
-        return ThreadCount;
+        return threadCount;
     }
 
     /**
